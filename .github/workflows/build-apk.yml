@@ -9,6 +9,15 @@ jobs:
       - name: Lấy mã nguồn
         uses: actions/checkout@v4
 
+      - name: Kiểm tra file trong repo
+        run: |
+          echo "Các file đang có trong repo:"; find . -path ./.git -prune -o -type f -print | sort
+          for f in package.json capacitor.config.json www/index.html; do
+            [ -f "$f" ] || { echo "::error::Thiếu file bắt buộc: $f"; exit 1; }
+          done
+          [ -d resources/android ] || echo "::warning::Thiếu thư mục resources/android → app sẽ dùng icon mặc định"
+          [ -f keystore/tina.keystore ] || echo "::warning::Thiếu keystore/tina.keystore → sẽ dùng khóa tạm, lần sau cài đè có thể không được"
+
       - name: Cài Node.js
         uses: actions/setup-node@v4
         with:
@@ -32,7 +41,21 @@ jobs:
         run: npx cap add android
 
       - name: Áp icon, splash, màu, phiên bản
-        run: bash scripts/customize-android.sh
+        run: |
+          RES=android/app/src/main/res
+          SRC=resources/android
+          if [ -d "$SRC" ]; then
+            for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+              [ -d "$SRC/mipmap-$d" ] && cp "$SRC/mipmap-$d/"*.png "$RES/mipmap-$d/" || true
+            done
+            printf '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#F5D55C</color>\n</resources>\n' > "$RES/values/ic_launcher_background.xml"
+            [ -f "$SRC/splash_land.png" ] && find "$RES" -name 'splash.png' -path '*land*' -exec cp "$SRC/splash_land.png" {} \;
+            [ -f "$SRC/splash_port.png" ] && find "$RES" -name 'splash.png' ! -path '*land*' -exec cp "$SRC/splash_port.png" {} \;
+            echo "Đã áp icon và màn hình chờ"
+          fi
+          CODE="${GITHUB_RUN_NUMBER}"
+          sed -i -E "s/versionCode [0-9]+/versionCode ${CODE}/; s/versionName \"[^\"]+\"/versionName \"1.0.${CODE}\"/" android/app/build.gradle
+          grep -E "versionCode|versionName" android/app/build.gradle
 
       - name: Đồng bộ web vào Android
         run: npx cap sync android
@@ -52,9 +75,13 @@ jobs:
           # Dùng khóa trong Secrets nếu có, nếu không dùng khóa có sẵn trong thư mục keystore/
           if [ -n "${KS_B64:-}" ]; then
             echo "$KS_B64" | base64 -d > release.keystore
-          else
+          elif [ -f keystore/tina.keystore ]; then
             cp keystore/tina.keystore release.keystore
             KS_PASS=tina123456; KS_ALIAS=tina
+          else
+            KS_PASS=tina123456; KS_ALIAS=tina
+            keytool -genkeypair -keystore release.keystore -alias tina -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KS_PASS" -keypass "$KS_PASS" -dname "CN=TINA Pet Spa, O=TINA, C=VN"
           fi
           BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
           IN=android/app/build/outputs/apk/release/app-release-unsigned.apk
