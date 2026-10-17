@@ -9,6 +9,32 @@ jobs:
       - name: Lấy mã nguồn
         uses: actions/checkout@v4
 
+      - name: Sắp xếp file (nếu tải lên bị dồn chung một chỗ)
+        shell: python3 {0}
+        run: |
+          import os, glob, shutil, struct
+          def png_w(p):
+              with open(p, 'rb') as f: d = f.read(24)
+              return struct.unpack('>I', d[16:20])[0] if d[:8] == b'\x89PNG\r\n\x1a\n' else None
+          def put(src, dst):
+              if os.path.exists(dst): return
+              os.makedirs(os.path.dirname(dst), exist_ok=True)
+              shutil.copy(src, dst); print(f'{src}  ->  {dst}')
+          if os.path.exists('index.html'): put('index.html', 'www/index.html')
+          if os.path.exists('tina.keystore'): put('tina.keystore', 'keystore/tina.keystore')
+          legacy = {48: 'mdpi', 72: 'hdpi', 96: 'xhdpi', 144: 'xxhdpi', 192: 'xxxhdpi'}
+          fore = {108: 'mdpi', 162: 'hdpi', 216: 'xhdpi', 324: 'xxhdpi', 432: 'xxxhdpi'}
+          for f in sorted(glob.glob('*.png')):
+              n, w = os.path.basename(f), png_w(f)
+              if n.startswith('splash_land'): put(f, 'resources/android/splash_land.png')
+              elif n.startswith('splash_port'): put(f, 'resources/android/splash_port.png')
+              elif n.startswith('ic_launcher_foreground') and w in fore:
+                  put(f, f'resources/android/mipmap-{fore[w]}/ic_launcher_foreground.png')
+              elif n.startswith('ic_launcher_round') and w in legacy:
+                  put(f, f'resources/android/mipmap-{legacy[w]}/ic_launcher_round.png')
+              elif n.startswith('ic_launcher') and w in legacy:
+                  put(f, f'resources/android/mipmap-{legacy[w]}/ic_launcher.png')
+
       - name: Kiểm tra file trong repo
         run: |
           echo "Các file đang có trong repo:"; find . -path ./.git -prune -o -type f -print | sort
