@@ -1,0 +1,16 @@
+{
+  "appId": "vn.tina.petspa",
+  "appName": "TINA Pet Spa",
+  "webDir": "www",
+  "backgroundColor": "#FFF8DC",
+  "android": {
+    "adjustMarginsForEdgeToEdge": "force"
+  },
+  "plugins": {
+    "StatusBar": {
+      "backgroundColor": "#F5D55C",
+      "style": "LIGHT",
+      "overlaysWebView": false
+    }
+  }
+}
