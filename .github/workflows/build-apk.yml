@@ -1,9 +1,6 @@
 name: Build APK
 
-on:
-  push:
-    branches: [ main ]
-  workflow_dispatch:
+on: [push, workflow_dispatch]
 
 jobs:
   build:
@@ -25,6 +22,8 @@ jobs:
 
       - name: Cài Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
 
       - name: Cài thư viện
         run: npm install
